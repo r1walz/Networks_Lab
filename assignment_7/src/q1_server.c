@@ -47,7 +47,7 @@ void single_parity(struct pckt data)
 		   err ^ data.bit ? "Yes" : "No");
 }
 
-void double_parity(int div, struct pckt data)
+void double_parity(struct pckt data)
 {
 	int row, col, err = 0;
 	int n = data.size / data.bit;
@@ -171,12 +171,7 @@ int main(int argc, const char *argv[])
 
 	switch (method) {
 	case SINGLE: single_parity(data); break;
-	case DOUBLE: {
-		int div = 0;
-		read(sock, (void *)&div, sizeof(div));
-		double_parity(div, data);
-		break;
-	}
+	case DOUBLE: double_parity(data); break;
 	case CHKSUM: check_sum(data); break;
 	case CYCLIC: cyclic_check(sock, data); break;
 	default: printf("no such algorithm found\n");

@@ -1,3 +1,4 @@
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,14 +50,14 @@ int check_msg(struct pckt *data)
 	return TRUE;
 }
 
-void single_parity(int sock, struct pckt *data)
+void single_parity(struct pckt *data)
 {
 	data->bit = 0;
 	for (int i = 0; data->msg[i] != '\0'; ++i)
 		data->bit ^= data->msg[i] - '0';
 }
 
-void double_parity(int sock, struct pckt *data)
+void double_parity(struct pckt *data)
 {
 	int n;
 	char *msg = data->msg;
@@ -84,7 +85,7 @@ void double_parity(int sock, struct pckt *data)
 	}
 }
 
-void check_sum(int sock, struct pckt *data)
+void check_sum(struct pckt *data)
 {
 	int n;
 	char *msg = data->msg;
@@ -112,7 +113,7 @@ void check_sum(int sock, struct pckt *data)
 	data->chksum = ~chksum;
 }
 
-void cyclic_check(int sock, struct pckt *data)
+void cyclic_check(struct pckt *data)
 {
 	int div, size, rem;
 	while (TRUE) {
@@ -137,12 +138,67 @@ void cyclic_check(int sock, struct pckt *data)
 	data->div = div;
 }
 
+void add_manual_error(struct pckt *data)
+{
+	int bits, pos;
+
+	printf("Enter number of bits flipped: ");
+	scanf("%d", &bits);
+
+	while (bits--) {
+		while (TRUE) {
+			printf("Enter bit position: ");
+			scanf("%d", &pos);
+
+			if (0 <= pos && pos < data->size) {
+				data->msg[pos] - '0' ? --data->msg[pos] : ++data->msg[pos];
+				break;
+			}
+			else
+				printf("Enter a value less than message size (%d)\n", data->size);
+		}
+	}
+}
+
+void add_probabilistic_error(struct pckt *data)
+{
+	int max = 1;
+	double prob = 0.0;
+	double arr[BLK_SIZE];
+
+	srand(time(NULL));
+	for (int i = 0; i < BLK_SIZE; ++i) {
+		arr[i] = rand();
+		if (arr[i] > max)
+			max = arr[i];
+	}
+	for (int i = 0; i < BLK_SIZE; ++i)
+		arr[i] /= max;
+
+	while (TRUE) {
+		printf("Enter probability: ");
+		scanf("%lf", &prob);
+
+		if (0.0 <= prob && prob <= 1.0)
+			break;
+		else
+			printf("Please enter probability within "
+				   "reasonable range (0.0 - 1.0)\n");
+	}
+
+	for (int i = 0; i < data->size; ++i)
+		if (arr[i] < prob)
+			data->msg[i] - '0' ? --data->msg[i] : ++data->msg[i];
+
+}
+
 /**
  * Main driver program.
  */
 int main(int argc, const char *argv[])
 {
 	int port, sock = 0;
+	char err;
 	struct pckt data;
 	enum algorithm method = ALGO_INIT;
 	struct sockaddr_in serv_addr;
@@ -197,13 +253,29 @@ int main(int argc, const char *argv[])
 	}
 
 	switch (method) {
-	case SINGLE: single_parity(sock, &data); break;
-	case DOUBLE: double_parity(sock, &data); break;
-	case CHKSUM: check_sum(sock, &data); break;
-	case CYCLIC: cyclic_check(sock, &data); break;
+	case SINGLE: single_parity(&data); break;
+	case DOUBLE: double_parity(&data); break;
+	case CHKSUM: check_sum(&data); break;
+	case CYCLIC: cyclic_check(&data); break;
 	default: printf("no such algorithm found\n");
 	}
 
+	printf("Introduce error? (Y/N): ");
+	scanf(" %c", &err);
+
+	if (err == 'y' || err == 'Y') {
+		printf("Manual (M) or Probabilistic (P): ");
+		scanf(" %c", &err);
+
+		switch (err) {
+		case 'm': case 'M': add_manual_error(&data); break;
+		case 'p': case 'P': add_probabilistic_error(&data); break;
+		default: printf("invalid selection sending original data\n");
+		}
+	}
+
 	write(sock, (const void *)&data, sizeof(data));
+	printf("%s was sent to the server\n", data.msg);
+
 	return 0;
 }
