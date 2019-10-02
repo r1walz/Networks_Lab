@@ -20,7 +20,7 @@ enum algorithm {
 
 struct pckt {
 	char msg[BLK_SIZE];
-	int bit, size;
+	int bit, size, div;
 	int parityh[BLK_SIZE];
 	int parityv[BLK_SIZE];
 	unsigned int chksum;
@@ -112,9 +112,29 @@ void check_sum(int sock, struct pckt *data)
 	data->chksum = ~chksum;
 }
 
-void cyclic_check(int sock, struct pckt data)
+void cyclic_check(int sock, struct pckt *data)
 {
-	printf("CRC\n");
+	int div, size, rem;
+	while (TRUE) {
+		struct pckt tmp;
+		printf("Enter divisor: ");
+		scanf("%1024s", (char *)&tmp.msg);
+		if (check_msg(&tmp)) {
+			div = strtol(tmp.msg, NULL, 2);
+			size = tmp.size - 1;
+			break;
+		}
+		else
+			printf("only binary divisors are allowed\n");
+	}
+
+	for (int i = data->size; i < data->size + size; ++i)
+		data->msg[i] = '0';
+	data->msg[data->size + size] = '\0';
+	rem = strtol(data->msg, NULL, 2) % div; // Someone write code for remainder function
+	for (int i = 0, j = 4; i < size; ++i, j >>= 1)
+		data->msg[data->size + i] += (rem & j) >> (size - i - 1);
+	data->div = div;
 }
 
 /**
@@ -180,7 +200,7 @@ int main(int argc, const char *argv[])
 	case SINGLE: single_parity(sock, &data); break;
 	case DOUBLE: double_parity(sock, &data); break;
 	case CHKSUM: check_sum(sock, &data); break;
-	case CYCLIC: cyclic_check(sock, data); break;
+	case CYCLIC: cyclic_check(sock, &data); break;
 	default: printf("no such algorithm found\n");
 	}
 

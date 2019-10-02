@@ -18,7 +18,7 @@ enum algorithm {
 
 struct pckt {
 	char msg[BLK_SIZE];
-	int bit, size;
+	int bit, size, div;
 	int parityh[BLK_SIZE];
 	int parityv[BLK_SIZE];
 	unsigned int chksum;
@@ -47,7 +47,7 @@ void single_parity(struct pckt data)
 		   err ^ data.bit ? "Yes" : "No");
 }
 
-void double_parity(struct pckt data)
+void double_parity(int div, struct pckt data)
 {
 	int row, col, err = 0;
 	int n = data.size / data.bit;
@@ -105,9 +105,16 @@ void check_sum(struct pckt data)
 		   err ? "Yes" : "No");
 }
 
-void cyclic_check(const char *msg)
+void cyclic_check(int sock, struct pckt data)
 {
-	if (DEBUG) printf("CRC\n");
+	int msg = strtol(data.msg, NULL, 2);
+	int err = msg / data.div;
+
+	printf("Algorithm used: cyclic redundancy check\n"
+		   "message: %s\n"
+		   "Error detected: %s\n",
+		   data.msg,
+		   err ? "Yes" : "No");
 }
 
 /**
@@ -164,9 +171,14 @@ int main(int argc, const char *argv[])
 
 	switch (method) {
 	case SINGLE: single_parity(data); break;
-	case DOUBLE: double_parity(data); break;
+	case DOUBLE: {
+		int div = 0;
+		read(sock, (void *)&div, sizeof(div));
+		double_parity(div, data);
+		break;
+	}
 	case CHKSUM: check_sum(data); break;
-	case CYCLIC: cyclic_check(data.msg); break;
+	case CYCLIC: cyclic_check(sock, data); break;
 	default: printf("no such algorithm found\n");
 	}
 
