@@ -21,7 +21,8 @@ enum algorithm {
 struct pckt {
 	char msg[BLK_SIZE];
 	int bit, size;
-	int parity[BLK_SIZE];
+	int parityh[BLK_SIZE];
+	int parityv[BLK_SIZE];
 	unsigned int chksum;
 };
 
@@ -55,9 +56,32 @@ void single_parity(int sock, struct pckt *data)
 		data->bit ^= data->msg[i] - '0';
 }
 
-void double_parity(int sock, struct pckt data)
+void double_parity(int sock, struct pckt *data)
 {
-	write(sock, (const void *)&data, sizeof(data));
+	int n;
+	char *msg = data->msg;
+
+	while (TRUE) {
+		printf("Enter number of segments: ");
+		scanf("%d", &data->bit);
+		if (data->bit < data->size && !(data->size % data->bit))
+			break;
+		else
+			printf("number of segments should divide "
+				   "size of message (%d)\n", data->size);
+	}
+
+	n = data->size / data->bit;
+	for (int i = 0; i < data->bit; ++i) {
+		data->parityh[i] = 0;
+		for (int j = i * n; j < (i + 1) * n; ++j)
+			data->parityh[i] ^= msg[j] - '0';
+	}
+	for (int i = 0; i < n; ++i) {
+		data->parityv[i] = 0;
+		for (int j = i; j < data->size; j += n)
+			data->parityv[i] ^= msg[j] - '0';
+	}
 }
 
 void check_sum(int sock, struct pckt *data)
@@ -90,7 +114,7 @@ void check_sum(int sock, struct pckt *data)
 
 void cyclic_check(int sock, struct pckt data)
 {
-	write(sock, (const void *)&data, sizeof(data));
+	printf("CRC\n");
 }
 
 /**
@@ -154,7 +178,7 @@ int main(int argc, const char *argv[])
 
 	switch (method) {
 	case SINGLE: single_parity(sock, &data); break;
-	case DOUBLE: double_parity(sock, data); break;
+	case DOUBLE: double_parity(sock, &data); break;
 	case CHKSUM: check_sum(sock, &data); break;
 	case CYCLIC: cyclic_check(sock, data); break;
 	default: printf("no such algorithm found\n");

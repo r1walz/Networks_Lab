@@ -19,7 +19,8 @@ enum algorithm {
 struct pckt {
 	char msg[BLK_SIZE];
 	int bit, size;
-	int parity[BLK_SIZE];
+	int parityh[BLK_SIZE];
+	int parityv[BLK_SIZE];
 	unsigned int chksum;
 };
 
@@ -46,17 +47,48 @@ void single_parity(struct pckt data)
 		   err ^ data.bit ? "Yes" : "No");
 }
 
-void double_parity(const char *msg)
+void double_parity(struct pckt data)
 {
-	if (DEBUG) printf("DOUBLE\n");
+	int row, col, err = 0;
+	int n = data.size / data.bit;
+	char *msg = data.msg;
+
+	for (int i = 0; i < data.bit; ++i) {
+		for (int j = i * n; j < (i + 1) * n; ++j)
+			data.parityh[i] ^= msg[j] - '0';
+		if (data.parityh[i]) {
+			row = i;
+			err = 1;
+			break;
+		}
+	}
+
+	for (int i = 0; i < n; ++i) {
+		for (int j = i; j < data.size; j += n)
+			data.parityv[i] ^= msg[j] - '0';
+		if (data.parityv[i]) {
+			col = i;
+			err = 1;
+			break;
+		}
+	}
+
+	printf("Algorithm used: double parity check\n"
+		   "message: %s\n"
+		   "Error detected: ",
+		   data.msg);
+	if (err)
+		printf("Yes (Row: %d, Col: %d)\n", row, col);
+	else
+		printf("No\n");
 }
 
 void check_sum(struct pckt data)
 {
-	unsigned int err = 0;
 	int n = data.size / data.bit;
 	char str[n];
 	char *msg = data.msg;
+	unsigned int err = 0;
 	unsigned int chksum = 0;
 
 	for (int i = 0; msg[i] != '\0';) {
@@ -132,7 +164,7 @@ int main(int argc, const char *argv[])
 
 	switch (method) {
 	case SINGLE: single_parity(data); break;
-	case DOUBLE: double_parity(data.msg); break;
+	case DOUBLE: double_parity(data); break;
 	case CHKSUM: check_sum(data); break;
 	case CYCLIC: cyclic_check(data.msg); break;
 	default: printf("no such algorithm found\n");
