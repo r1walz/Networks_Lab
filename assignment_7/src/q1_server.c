@@ -18,7 +18,9 @@ enum algorithm {
 
 struct pckt {
 	char msg[BLK_SIZE];
-	int parity;
+	int bit, size;
+	int parity[BLK_SIZE];
+	unsigned int chksum;
 };
 
 /**
@@ -41,7 +43,7 @@ void single_parity(struct pckt data)
 		   "message: %s\n"
 		   "Error detected: %s\n",
 		   data.msg,
-		   err ^ data.parity ? "Yes" : "No");
+		   err ^ data.bit ? "Yes" : "No");
 }
 
 void double_parity(const char *msg)
@@ -49,9 +51,26 @@ void double_parity(const char *msg)
 	if (DEBUG) printf("DOUBLE\n");
 }
 
-void check_sum(const char *msg)
+void check_sum(struct pckt data)
 {
-	if (DEBUG) printf("check sum\n");
+	unsigned int err = 0;
+	int n = data.size / data.bit;
+	char str[n];
+	char *msg = data.msg;
+	unsigned int chksum = 0;
+
+	for (int i = 0; msg[i] != '\0';) {
+		for (int j = 0; j < n; ++j)
+			str[j] = msg[i++];
+		chksum += strtol(str, NULL, 2);
+	}
+
+	err = ~(chksum + data.chksum);
+	printf("Algorithm used: checksum\n"
+		   "message: %s\n"
+		   "Error detected: %s\n",
+		   data.msg,
+		   err ? "Yes" : "No");
 }
 
 void cyclic_check(const char *msg)
@@ -114,7 +133,7 @@ int main(int argc, const char *argv[])
 	switch (method) {
 	case SINGLE: single_parity(data); break;
 	case DOUBLE: double_parity(data.msg); break;
-	case CHKSUM: check_sum(data.msg); break;
+	case CHKSUM: check_sum(data); break;
 	case CYCLIC: cyclic_check(data.msg); break;
 	default: printf("no such algorithm found\n");
 	}

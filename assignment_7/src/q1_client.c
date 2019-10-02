@@ -20,7 +20,9 @@ enum algorithm {
 
 struct pckt {
 	char msg[BLK_SIZE];
-	int parity;
+	int bit, size;
+	int parity[BLK_SIZE];
+	unsigned int chksum;
 };
 
 /**
@@ -33,22 +35,24 @@ void die(const char *msg)
 	exit(EXIT_FAILURE);
 }
 
-int check_msg(const char *msg)
+int check_msg(struct pckt *data)
 {
-	for (int i = 0; msg[i] != '\0'; ++i) {
+	int i;
+	char *msg = data->msg;
+	for (i = 0; msg[i] != '\0'; ++i) {
 		if (msg[i] != '0' && msg[i] != '1')
 			return !TRUE;
 	}
+
+	data->size = i;
 	return TRUE;
 }
 
-void single_parity(int sock, struct pckt data)
+void single_parity(int sock, struct pckt *data)
 {
-	data.parity = 0;
-	for (int i = 0; data.msg[i] != '\0'; ++i)
-		data.parity ^= data.msg[i] - '0';
-
-	write(sock, (const void *)&data, sizeof(data));
+	data->bit = 0;
+	for (int i = 0; data->msg[i] != '\0'; ++i)
+		data->bit ^= data->msg[i] - '0';
 }
 
 void double_parity(int sock, struct pckt data)
@@ -56,9 +60,32 @@ void double_parity(int sock, struct pckt data)
 	write(sock, (const void *)&data, sizeof(data));
 }
 
-void check_sum(int sock, struct pckt data)
+void check_sum(int sock, struct pckt *data)
 {
-	write(sock, (const void *)&data, sizeof(data));
+	int n;
+	char *msg = data->msg;
+	unsigned int chksum = 0;
+
+	while (TRUE) {
+		printf("Enter number of segments: ");
+		scanf("%d", &data->bit);
+		if (data->bit < data->size && !(data->size % data->bit))
+			break;
+		else
+			printf("number of segments should divide "
+				   "size of message (%d)\n", data->size);
+	}
+
+	n = data->size / data->bit;
+	char str[n];
+
+	for (int i = 0; msg[i] != '\0';) {
+		for (int j = 0; j < n; ++j)
+			str[j] = msg[i++];
+		chksum += strtol(str, NULL, 2);
+	}
+
+	data->chksum = ~chksum;
 }
 
 void cyclic_check(int sock, struct pckt data)
@@ -114,25 +141,25 @@ int main(int argc, const char *argv[])
 			printf("Enter value in the specified range\n");
 	}
 
-	if (DEBUG) printf("%d\n", method);
 	write(sock, &method, sizeof(method));
 
 	while (TRUE) {
 		printf("Enter message: ");
 		scanf("%1024s", (char *)&data.msg);
-		if (check_msg(data.msg))
+		if (check_msg(&data))
 			break;
 		else
 			printf("only binary messages are allowed\n");
 	}
 
 	switch (method) {
-	case SINGLE: single_parity(sock, data); break;
+	case SINGLE: single_parity(sock, &data); break;
 	case DOUBLE: double_parity(sock, data); break;
-	case CHKSUM: check_sum(sock, data); break;
+	case CHKSUM: check_sum(sock, &data); break;
 	case CYCLIC: cyclic_check(sock, data); break;
 	default: printf("no such algorithm found\n");
 	}
 
+	write(sock, (const void *)&data, sizeof(data));
 	return 0;
 }
