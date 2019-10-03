@@ -1,0 +1,5 @@
+
+
+Campus Network.node_0,Campus Network.node_2,161.65,0,node_0 --> node_2,Campus Network.node_0,Campus Network.node_2 <-> node_0
+
+Campus Network.node_1,Campus Network.node_7,161.95,1,node_1 --> node_7,Campus Network.node_1,Campus Network.node_1 <-> node_2,Campus Network.node_2,Campus Network.node_2 <-> node_4,Campus Network.node_4,Campus Network.node_4 <-> node_6,Campus Network.node_6,Campus Network.node_6 <-> node_7
