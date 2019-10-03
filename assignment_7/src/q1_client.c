@@ -189,7 +189,6 @@ void add_probabilistic_error(struct pckt *data)
 	for (int i = 0; i < data->size; ++i)
 		if (arr[i] < prob)
 			data->msg[i] - '0' ? --data->msg[i] : ++data->msg[i];
-
 }
 
 /**

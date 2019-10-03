@@ -1,6 +1,12 @@
 {
 	"files.associations": {
 		"string.h": "c",
-		"iostream": "cpp"
+		"iostream": "cpp",
+		"*.ipp": "c",
+		"array": "c",
+		"bitset": "c",
+		"string_view": "c",
+		"initializer_list": "c",
+		"utility": "c"
 	}
 }

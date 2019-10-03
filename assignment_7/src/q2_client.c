@@ -1,3 +1,4 @@
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,11 +7,11 @@
 #include <sys/socket.h>
 
 #define TRUE 1
-#define BKL_SIZE 4
+#define BLK_SIZE 4
 #define PRT_SIZE 3
 
 struct pckt {
-	char msg[BKL_SIZE];
+	char msg[BLK_SIZE];
 	int parity[PRT_SIZE];
 };
 
@@ -41,12 +42,68 @@ void hamming_code(struct pckt *data)
 	data->parity[2] = (data->msg[3] - '0') ^ (data->msg[2] - '0') ^ (data->msg[0] - '0');
 }
 
+
+void add_manual_error(struct pckt *data)
+{
+	int bits, pos;
+
+	printf("Enter number of bits flipped: ");
+	scanf("%d", &bits);
+
+	while (bits--) {
+		while (TRUE) {
+			printf("Enter bit position: ");
+			scanf("%d", &pos);
+
+			if (0 <= pos && pos < BLK_SIZE) {
+				data->msg[pos] - '0' ? --data->msg[pos] : ++data->msg[pos];
+				break;
+			}
+			else
+				printf("Enter a value less than message size (%d)\n", BLK_SIZE);
+		}
+	}
+}
+
+void add_probabilistic_error(struct pckt *data)
+{
+	int max = 1;
+	double prob = 0.0;
+	double arr[BLK_SIZE];
+
+	srand(time(NULL));
+	for (int i = 0; i < BLK_SIZE; ++i) {
+		arr[i] = rand();
+		if (arr[i] > max)
+			max = arr[i];
+	}
+	for (int i = 0; i < BLK_SIZE; ++i)
+		arr[i] /= max;
+
+	while (TRUE) {
+		printf("Enter probability: ");
+		scanf("%lf", &prob);
+
+		if (0.0 <= prob && prob <= 1.0)
+			break;
+		else
+			printf("Please enter probability within "
+				   "reasonable range (0.0 - 1.0)\n");
+	}
+
+	for (int i = 0; i < BLK_SIZE; ++i)
+		if (arr[i] < prob)
+			data->msg[i] - '0' ? --data->msg[i] : ++data->msg[i];
+
+}
+
 /**
  * Main driver program.
  */
 int main(int argc, const char *argv[])
 {
 	int port, sock = 0;
+	char err;
 	struct pckt data;
 	struct sockaddr_in serv_addr;
 

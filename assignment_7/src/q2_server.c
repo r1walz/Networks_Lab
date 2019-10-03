@@ -6,13 +6,26 @@
 #include <sys/socket.h>
 
 #define TRUE 1
-#define BKL_SIZE 4
+#define BLK_SIZE 4
 #define PRT_SIZE 3
 
 struct pckt {
-	char msg[BKL_SIZE];
+	char msg[BLK_SIZE];
 	int parity[PRT_SIZE];
 };
+
+char *detect[] = {
+	"No",
+	"q0",
+	"q1",
+	"b2",
+	"q2",
+	"b0",
+	"b3",
+	"b1"
+};
+
+int correct[] = { -1, -1, -1, 1, -1, 3, 0, 2 };
 
 /**
  * Function to give better information about the crash and exit with
@@ -26,7 +39,22 @@ void die(const char *msg)
 
 void hamming_code(struct pckt data)
 {
+	int idx;
+	int s0 = data.parity[0] ^ (data.msg[3] - '0')
+			 ^ (data.msg[2] - '0') ^ (data.msg[1] - '0');
+	int s1 = data.parity[1] ^ (data.msg[2] - '0')
+			 ^ (data.msg[1] - '0') ^ (data.msg[0] - '0');
+	int s2 = data.parity[2] ^ (data.msg[3] - '0')
+			 ^ (data.msg[2] - '0') ^ (data.msg[0] - '0');
+	s0 += (s1 << 1) + (s2 << 2);
 
+	printf("received message: %s\n", data.msg);
+	printf("error detected: %s\n", detect[s0]);
+
+	idx = correct[s0];
+	if (idx != -1)
+		data.msg[idx] - '0' ? --data.msg[idx] : ++data.msg[idx];
+	printf("corrected message: %s\n", data.msg);
 }
 
 /**
