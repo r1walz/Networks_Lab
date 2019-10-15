@@ -9,6 +9,7 @@
 #define TRUE 1
 #define ever (;;)
 #define ALGO_INIT SINGLE
+#define PCKT_INIT { .msg = "", .div = "", .bit = 0, .size = 0 }
 #define BLK_SIZE 1024
 #define DEBUG 1
 
@@ -21,7 +22,8 @@ enum algorithm {
 
 struct pckt {
 	char msg[BLK_SIZE];
-	int bit, size, div;
+	char div[BLK_SIZE];
+	int bit, size;
 	int parityh[BLK_SIZE];
 	int parityv[BLK_SIZE];
 	unsigned int chksum;
@@ -48,6 +50,15 @@ int check_msg(struct pckt *data)
 
 	data->size = i;
 	return TRUE;
+}
+
+void xor(char *a, char *b, int n)
+{
+	for (int i = 0; i < n; ++i)
+		if (a[i] == b[i])
+			a[i] = '0';
+		else
+			a[i] = '1';
 }
 
 void single_parity(struct pckt *data)
@@ -115,27 +126,36 @@ void check_sum(struct pckt *data)
 
 void cyclic_check(struct pckt *data)
 {
-	int div, size, rem;
+	int sdiv, smsg = strlen(data->msg);
+	char *msg, *div;
 	while (TRUE) {
-		struct pckt tmp;
+		struct pckt tmp = PCKT_INIT;
 		printf("Enter divisor: ");
-		scanf("%1024s", (char *)&tmp.msg);
+		scanf("%1024s", tmp.msg);
 		if (check_msg(&tmp)) {
-			div = strtol(tmp.msg, NULL, 2);
-			size = tmp.size - 1;
+			div = strdup(tmp.msg);
+			sdiv = strlen(div);
 			break;
-		}
-		else
+		} else
 			printf("only binary divisors are allowed\n");
 	}
 
-	for (int i = data->size; i < data->size + size; ++i)
+	for (int i = smsg; i < smsg + sdiv - 1; ++i)
 		data->msg[i] = '0';
-	data->msg[data->size + size] = '\0';
-	rem = strtol(data->msg, NULL, 2) % div; // Someone write code for remainder function
-	for (int i = 0, j = 4; i < size; ++i, j >>= 1)
-		data->msg[data->size + i] += (rem & j) >> (size - i - 1);
-	data->div = div;
+	data->msg[smsg + sdiv - 1] = '\0';
+	msg = strdup(data->msg);
+	smsg = strlen(msg);
+
+	for (int i = 0; msg[i + sdiv - 1] != '\0';)
+		if (msg[i] == '0')
+			++i;
+		else
+			xor(&msg[i], div, sdiv);
+	for (int i = smsg - sdiv; i < smsg; ++i)
+		data->msg[i] = msg[i];
+	strcpy(data->div, div);
+	free(msg);
+	free(div);
 }
 
 void add_manual_error(struct pckt *data)
