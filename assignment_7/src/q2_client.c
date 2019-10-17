@@ -1,3 +1,4 @@
+#include <math.h>
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,12 +8,11 @@
 #include <sys/socket.h>
 
 #define TRUE 1
-#define BLK_SIZE 4
-#define PRT_SIZE 3
-
+#define BLK_SIZE 1024
+#define PCKT_INIT { .msg = "", .emsg = "" }
 struct pckt {
 	char msg[BLK_SIZE];
-	int parity[PRT_SIZE];
+	char emsg[BLK_SIZE];
 };
 
 /**
@@ -37,11 +37,49 @@ int check_msg(struct pckt *data)
 
 void hamming_code(struct pckt *data)
 {
-	data->parity[0] = (data->msg[3] - '0') ^ (data->msg[2] - '0') ^ (data->msg[1] - '0');
-	data->parity[1] = (data->msg[2] - '0') ^ (data->msg[1] - '0') ^ (data->msg[0] - '0');
-	data->parity[2] = (data->msg[3] - '0') ^ (data->msg[2] - '0') ^ (data->msg[0] - '0');
-}
+	char *emsg;
+	char *msg = data->msg;
+	int a = strlen(data->msg);
+	int r = 0, d = 0, d1 = 0;
+	int min, max = 0, bit, s, j;
 
+	while (a + r + 1 > (int)pow(2, r))
+		++r;
+
+	printf("number of data bits to be added: %d\n"
+	       "Total bits: %d\n", r, a + r);
+	emsg = (char *)malloc(sizeof(char) * (a + r));
+
+	for (int i = 0; i < a + r; ++i)
+		if (i == (int)pow(2, d) - 1)
+			++d, emsg[i] = '0';
+		else
+			emsg[i] = msg[d1++];
+
+	printf("encoded msg: %s\n", emsg);
+
+	d1 = 0;
+	for (int i = 0; i < a + r; i = pow(2, d1) - 1) {
+		min = 0, max = i;
+		++d1, bit = 0, j = s = i;
+		while (j < a + r) {
+			for (s = j; max >= min; ++min, ++s)
+				if (emsg[s] == '1')
+					++bit;
+			j = s + i;
+			min = 0;
+		}
+
+		if (!(bit % 2))
+			emsg[i] = '0';
+		else
+			emsg[i] = '1';
+	}
+
+	printf("Hamming code: %s\n", emsg);
+	strcpy(data->emsg, emsg);
+	free(emsg);
+}
 
 void add_manual_error(struct pckt *data)
 {
@@ -56,7 +94,7 @@ void add_manual_error(struct pckt *data)
 			scanf("%d", &pos);
 
 			if (0 <= pos && pos < BLK_SIZE) {
-				data->msg[pos] - '0' ? --data->msg[pos] : ++data->msg[pos];
+				data->emsg[pos] - '0' ? --data->emsg[pos] : ++data->emsg[pos];
 				break;
 			}
 			else
@@ -93,7 +131,7 @@ void add_probabilistic_error(struct pckt *data)
 
 	for (int i = 0; i < BLK_SIZE; ++i)
 		if (arr[i] < prob)
-			data->msg[i] - '0' ? --data->msg[i] : ++data->msg[i];
+			data->emsg[i] - '0' ? --data->emsg[i] : ++data->emsg[i];
 
 }
 
@@ -104,7 +142,7 @@ int main(int argc, const char *argv[])
 {
 	int port, sock = 0;
 	char err;
-	struct pckt data;
+	struct pckt data = PCKT_INIT;
 	struct sockaddr_in serv_addr;
 
 	if (argc != 3) {
@@ -128,11 +166,10 @@ int main(int argc, const char *argv[])
 	if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
 		die("connection failed");
 	printf("connection established!\n");
-	printf("Enter a 4-bit message:\n");
 
 	while (TRUE) {
 		printf("Enter message: ");
-		scanf("%4s", (char *)&data.msg);
+		scanf("%1024s", (char *)&data.msg);
 		if (check_msg(&data))
 			break;
 		else
@@ -141,7 +178,7 @@ int main(int argc, const char *argv[])
 
 	hamming_code(&data);
 
-	printf("Introduce error? (Y/N): ");
+	printf("Introduce error? [can correct upto 1 error] (Y/N): ");
 	scanf(" %c", &err);
 
 	if (err == 'y' || err == 'Y') {
@@ -156,7 +193,7 @@ int main(int argc, const char *argv[])
 	}
 
 	write(sock, (const void *)&data, sizeof(data));
-	printf("%s was sent to the server\n", data.msg);
+	printf("%s was sent to the server\n", data.emsg);
 
 	return 0;
 }

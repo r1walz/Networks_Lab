@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,26 +7,13 @@
 #include <sys/socket.h>
 
 #define TRUE 1
-#define BLK_SIZE 4
-#define PRT_SIZE 3
+#define BLK_SIZE 1024
+#define PCKT_INIT { .msg = "", .emsg = "" }
 
 struct pckt {
 	char msg[BLK_SIZE];
-	int parity[PRT_SIZE];
+	char emsg[BLK_SIZE];
 };
-
-char *detect[] = {
-	"No",
-	"q0",
-	"q1",
-	"b2",
-	"q2",
-	"b0",
-	"b3",
-	"b1"
-};
-
-int correct[] = { -1, -1, -1, 1, -1, 3, 0, 2 };
 
 /**
  * Function to give better information about the crash and exit with
@@ -37,24 +25,67 @@ void die(const char *msg)
 	exit(EXIT_FAILURE);
 }
 
+
 void hamming_code(struct pckt data)
 {
-	int idx;
-	int s0 = data.parity[0] ^ (data.msg[3] - '0')
-			 ^ (data.msg[2] - '0') ^ (data.msg[1] - '0');
-	int s1 = data.parity[1] ^ (data.msg[2] - '0')
-			 ^ (data.msg[1] - '0') ^ (data.msg[0] - '0');
-	int s2 = data.parity[2] ^ (data.msg[3] - '0')
-			 ^ (data.msg[2] - '0') ^ (data.msg[0] - '0');
-	s0 += (s1 << 1) + (s2 << 2);
+	char *emsg;
+	char *msg = data.msg;
+	int a = strlen(msg), err = 0;
+	int r = 0, d = 0, d1 = 0, idx = 0;
+	int min, max = 0, bit, s, j;
 
-	printf("received message: %s\n", data.msg);
-	printf("error detected: %s\n", detect[s0]);
+	while (a + r + 1 > (int)pow(2, r))
+		++r;
 
-	idx = correct[s0];
-	if (idx != -1)
-		data.msg[idx] - '0' ? --data.msg[idx] : ++data.msg[idx];
-	printf("corrected message: %s\n", data.msg);
+	emsg = (char *)malloc(sizeof(char) * (a + r));
+
+	for (int i = 0; i < a + r; ++i)
+		if (i == (int)pow(2, d) - 1)
+			++d, emsg[i] = '0';
+		else
+			emsg[i] = msg[d1++];
+
+	d1 = 0;
+	for (int i = 0; i < a + r; i = pow(2, d1) - 1) {
+		min = 0, max = i;
+		++d1, bit = 0, j = s = i;
+		while (j < a + r) {
+			for (s = j; max >= min; ++min, ++s)
+				if (emsg[s] == '1')
+					++bit;
+			j = s + i;
+			min = 0;
+		}
+
+		if (!(bit % 2))
+			emsg[i] = '0';
+		else
+			emsg[i] = '1';
+	}
+
+	for (int i = 0; i < a + r; ++i)
+		if (data.emsg[i] != emsg[i])
+			++err, idx = i;
+
+	printf("received message: %s\n"
+	       "error detected: ", data.emsg);
+
+	switch (err) {
+	case 0:
+		printf("No\n");
+		printf("extracted message is: %s\n", msg);
+		break;
+	case 1:
+		printf("Yes, at %d position\n", idx);
+		printf("extracted message is: %s\n", msg);
+		msg[idx] - '0' ? --msg[idx] : ++msg[idx];
+		printf("corrected message is: %s\n", msg);
+		break;
+	default:
+		printf("Yes\n");
+	}
+
+	free(emsg);
 }
 
 /**
@@ -64,7 +95,7 @@ int main(int argc, const char *argv[])
 {
 	int sock, ser_sock, port, res;
 	struct sockaddr_in addr;
-	struct pckt data;
+	struct pckt data = PCKT_INIT;
 
 	int opt = 1;
 	int addrlen = sizeof(addr);
